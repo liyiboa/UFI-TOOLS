@@ -3233,69 +3233,100 @@ function main_func() {
 
 
     //初始化短信转发表单
-    const initSmsForward = async (needSwitch = true, method = undefined) => {
-        //判断是SMTP还是CURL转发
-        if (!method) {
-            const { sms_forward_method } = await (await fetchWithTimeout(`${KANO_baseURL}/sms_forward_method`, {
-                method: 'GET',
-                headers: common_headers
-            })).json()
-            method = sms_forward_method
-        }
-        if (method.toLowerCase() == 'smtp') {
-            //获取模态框数据
-            const data = await (await fetch(`${KANO_baseURL}/sms_forward_mail`, {
-                method: 'GET',
-                headers: common_headers
-            })).json()
-            const { smtp_host, smtp_port, smtp_username, smtp_password, smtp_to } = data
-            const smtpHostEl = document.querySelector('#smtp_host')
-            const smtpPortEl = document.querySelector('#smtp_port')
-            const smtpToEl = document.querySelector('#smtp_to')
-            const smtpUsernameEl = document.querySelector('#smtp_username')
-            const smtpPasswordEl = document.querySelector('#smtp_password')
-            smtpHostEl.value = smtp_host || ''
-            smtpPortEl.value = smtp_port || ''
-            smtpUsernameEl.value = smtp_username || ''
-            smtpPasswordEl.value = smtp_password || ''
-            smtpToEl.value = smtp_to || ''
-            needSwitch && switchSmsForwardMethodTab({ target: document.querySelector('#smtp_btn') })
-        } else if (method.toLowerCase() == 'curl') {
-            //获取模态框数据
-            const data = await (await fetch(`${KANO_baseURL}/sms_forward_curl`, {
-                method: 'GET',
-                headers: common_headers
-            })).json()
-            const { curl_text } = data
-            const curlTextEl = document.querySelector('#curl_text')
-            curlTextEl.value = curl_text || ''
-            needSwitch && switchSmsForwardMethodTab({ target: document.querySelector('#curl_btn') })
-        } else {
-            needSwitch && switchSmsForwardMethodTab({ target: document.querySelector('#smtp_btn') })
-        }
+const initSmsForward = async (needSwitch = true, method = undefined) => {
+    // 判断转发方式
+    if (!method) {
+        const { sms_forward_method } = await (await fetchWithTimeout(`${KANO_baseURL}/sms_forward_method`, {
+            method: 'GET',
+            headers: common_headers
+        })).json()
+        method = sms_forward_method
     }
+    
+    if (method.toLowerCase() === 'smtp') {
+        // SMTP初始化
+        const data = await (await fetch(`${KANO_baseURL}/sms_forward_mail`, {
+            method: 'GET',
+            headers: common_headers
+        })).json()
+        
+        const { smtp_host, smtp_port, smtp_username, smtp_password, smtp_to } = data
+        document.querySelector('#smtp_host').value = smtp_host || ''
+        document.querySelector('#smtp_port').value = smtp_port || ''
+        document.querySelector('#smtp_username').value = smtp_username || ''
+        document.querySelector('#smtp_password').value = smtp_password || ''
+        document.querySelector('#smtp_to').value = smtp_to || ''
+        
+        needSwitch && switchSmsForwardMethodTab({ target: document.querySelector('#smtp_btn') })
+        
+    } else if (method.toLowerCase() === 'curl') {
+        // CURL初始化
+        const data = await (await fetch(`${KANO_baseURL}/sms_forward_curl`, {
+            method: 'GET',
+            headers: common_headers
+        })).json()
+        
+        document.querySelector('#curl_text').value = data.curl_text || ''
+        needSwitch && switchSmsForwardMethodTab({ target: document.querySelector('#curl_btn') })
+        
+    } else if (method.toLowerCase() === 'wework') { 
+        // 新增企业微信初始化
+        const data = await (await fetch(`${KANO_baseURL}/sms_forward_wework`, {
+            method: 'GET',
+            headers: common_headers
+        })).json()
+        
+        const { corp_id, agent_id, secret, to_user } = data
+        document.querySelector('#wework_corp_id').value = corp_id || ''
+        document.querySelector('#wework_agent_id').value = agent_id || ''
+        document.querySelector('#wework_secret').value = secret || ''
+        document.querySelector('#wework_to_user').value = to_user || ''
+        
+        needSwitch && switchSmsForwardMethodTab({ target: document.querySelector('#wework_btn') })
+        
+    } else {
+        // 默认回退逻辑
+        needSwitch && switchSmsForwardMethodTab({ target: document.querySelector('#smtp_btn') })
+    }
+}
 
     //切换短信转发方式
-    const switchSmsForwardMethod = (method) => {
-        const smsForwardForm = document.querySelector('#smsForwardForm')
-        const smsForwardCurlForm = document.querySelector('#smsForwardCurlForm')
-        switch (method.toLowerCase()) {
-            case 'smtp':
-                smsForwardForm.style.display = 'block'
-                smsForwardCurlForm.style.display = 'none'
-                break
-            case 'curl':
-                smsForwardForm.style.display = 'none'
-                smsForwardCurlForm.style.display = 'block'
-                break
-            default:
-                smsForwardForm.style.display = 'block'
-                smsForwardCurlForm.style.display = 'none'
-                break
-        }
-        initSmsForward(false, method)
-        return method.toLowerCase()
+const switchSmsForwardMethod = (method) => {
+    // 获取所有表单元素
+    const smsForwardForm = document.querySelector('#smsForwardForm')
+    const smsForwardCurlForm = document.querySelector('#smsForwardCurlForm')
+    const smsForwardWeworkForm = document.querySelector('#smsForwardWeworkForm') // 新增企业微信表单
+    
+    // 统一转换为小写处理
+    const lowerMethod = method.toLowerCase()
+    
+    switch (lowerMethod) {
+        case 'smtp':
+            smsForwardForm.style.display = 'block'
+            smsForwardCurlForm.style.display = 'none'
+            smsForwardWeworkForm.style.display = 'none' // 隐藏企业微信
+            break
+        case 'curl':
+            smsForwardForm.style.display = 'none'
+            smsForwardCurlForm.style.display = 'block'
+            smsForwardWeworkForm.style.display = 'none' // 隐藏企业微信
+            break
+        case 'wework':  // 新增企业微信分支
+            smsForwardForm.style.display = 'none'
+            smsForwardCurlForm.style.display = 'none'
+            smsForwardWeworkForm.style.display = 'block'
+            break
+        default:  // 默认显示SMTP
+            smsForwardForm.style.display = 'block'
+            smsForwardCurlForm.style.display = 'none'
+            smsForwardWeworkForm.style.display = 'none'
+            break
     }
+    
+    // 初始化表单数据（不切换选项卡）
+    initSmsForward(false, lowerMethod)
+    return lowerMethod
+}
     //初始化短信转发模态框
     const initSmsForwardModal = async () => {
         const btn = document.querySelector('#smsForward')
@@ -3399,7 +3430,45 @@ function main_func() {
             return
         }
     }
+    //====== 新增企业微信表单处理 ======
+    const handleSmsForwardWeworkForm = async (e) => {
+        e.preventDefault()
+        const form = e.target
+        const formData = new FormData(form)
+        const corp_id = formData.get('corp_id')
+        const agent_id = formData.get('agent_id')
+        const secret = formData.get('secret')
+        const to_user = formData.get('to_user')
 
+        if (!corp_id?.trim()) return createToast('请输入企业ID', 'red')
+        if (!agent_id?.trim()) return createToast('请输入应用ID', 'red')
+        if (!secret?.trim()) return createToast('请输入应用密钥', 'red')
+        if (!to_user?.trim()) return createToast('请输入接收成员', 'red')
+
+        try {
+            const res = await fetch(`${KANO_baseURL}/sms_forward_wework`, {
+                method: 'POST',
+                headers: {
+                    ...common_headers,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    corp_id: corp_id.trim(),
+                    agent_id: agent_id.trim(),
+                    secret: secret.trim(),
+                    to_user: to_user.trim()
+                })
+            }).then(res => res.json())
+
+            if (res.result === 'success') {
+                createToast('企业微信配置保存成功，将发送测试消息', 'green')
+            } else {
+                createToast(res.error || '配置保存失败', 'red')
+            }
+        } catch (e) {
+            createToast('网络请求失败，请检查配置', 'red')
+        }
+    }
     //切换转发方式
     const switchSmsForwardMethodTab = (e) => {
         const target = e.target

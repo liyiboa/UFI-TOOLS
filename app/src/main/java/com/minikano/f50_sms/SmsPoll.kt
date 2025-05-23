@@ -28,17 +28,17 @@ object SmsPoll {
             lastSms = sms
             // 在这里做转发处理
             val sharedPrefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            val sms_forward_method = sharedPrefs.getString("kano_sms_forward_method", "") ?: ""
-            if(sms_forward_method =="SMTP") {
-                forwardByEmail(lastSms, context)
-            }
-            else if(sms_forward_method == "CURL"){
-                forwardSmsByCurl(lastSms,context)
-            }
-        } else {
-            Log.d("kano_ZTE_LOG", "无新短信，短信是否${minute}分钟内：$withinMin,短信是否为新：$isNew")
+            when (sharedPrefs.getString("kano_sms_forward_method", "")?.uppercase()) {
+            "SMTP" -> forwardByEmail(lastSms, context)
+            "CURL" -> forwardSmsByCurl(lastSms, context)
+            "WEWORK" -> forwardByWeWork(lastSms, context) // 新增这行
+            else -> Log.e("kano_ZTE_LOG", "未知的转发方式")
         }
+        // 修改这里结束
+    } else {
+        Log.d("kano_ZTE_LOG", "无新短信，短信是否${minute}分钟内：$withinMin,短信是否为新：$isNew")
     }
+}
 
     //通过curl转发
     fun forwardSmsByCurl(sms_data:SmsInfo?,context: Context) {
@@ -121,7 +121,92 @@ object SmsPoll {
             """.trimIndent()
         )
     }
+// 新增企业微信转发方法↓↓↓↓↓↓↓↓↓↓
+private fun forwardByWeWork(smsData: SmsInfo?, context: Context) {
+    if (smsData == null) return
 
+    // 在子线程执行网络操作
+    Thread {
+        try {
+            val sharedPrefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            
+            // 读取配置参数
+            val corpid = sharedPrefs.getString("kano_wework_corpid", "") ?: ""
+            val agentid = sharedPrefs.getString("kano_wework_agentid", "") ?: ""
+            val secret = sharedPrefs.getString("kano_wework_secret", "") ?: ""
+            val touser = sharedPrefs.getString("kano_wework_touser", "@all") ?: "@all"
+
+            // 参数检查
+            if (corpid.isEmpty() || agentid.isEmpty() || secret.isEmpty()) {
+                throw Exception("企业微信配置不完整")
+            }
+
+            Log.d("kano_ZTE_LOG", "正在通过企业微信转发...")
+
+            // 1. 获取访问令牌
+            val tokenUrl = "https://qyapi.weixin.qq.com/cgi-bin/gettoken?corpid=$corpid&corpsecret=$secret"
+            val tokenResponse = URL(tokenUrl).readText()
+            val tokenJson = JSONObject(tokenResponse)
+            if (tokenJson.getInt("errcode") != 0) {
+                throw Exception("获取Token失败: ${tokenJson.getString("errmsg")}")
+            }
+            val accessToken = tokenJson.getString("access_token")
+
+            // 2. 格式化消息内容
+            val formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")
+                .withZone(ZoneId.systemDefault())
+            val content = """
+                ${smsData.body.trim()}
+                📩 来自：${smsData.address}
+                ⏰ 时间：${formatter.format(Instant.ofEpochMilli(smsData.timestamp))}
+            """.trimIndent()
+
+            // 3. 构建消息JSON
+            val msgJson = """
+                {
+                    "touser": "$touser",
+                    "msgtype": "text",
+                    "agentid": $agentid,
+                    "text": {
+                        "content": "短信通知：\n$content"
+                    }
+                }
+            """.trimIndent()
+
+            // 4. 发送请求
+            val connection = URL("https://qyapi.weixin.qq.com/cgi-bin/message/send?access_token=$accessToken")
+                .openConnection() as HttpURLConnection
+            
+            connection.apply {
+                requestMethod = "POST"
+                doOutput = true
+                setRequestProperty("Content-Type", "application/json")
+                connectTimeout = 5000 // 5秒超时
+                readTimeout = 5000
+            }
+
+            // 写入请求体
+            connection.outputStream.use { it.write(msgJson.toByteArray()) }
+
+            // 检查响应状态
+            if (connection.responseCode != 200) {
+                throw Exception("HTTP错误码：${connection.responseCode}")
+            }
+
+            // 检查企业微信返回结果
+            val response = connection.inputStream.bufferedReader().readText()
+            val resJson = JSONObject(response)
+            if (resJson.getInt("errcode") != 0) {
+                throw Exception("发送失败：${resJson.getString("errmsg")}")
+            }
+
+            Log.d("kano_ZTE_LOG", "企业微信消息发送成功！")
+
+        } catch (e: Exception) {
+            Log.e("kano_ZTE_LOG", "企业微信发送失败: ${e.message}")
+        }
+    }.start() // 启动线程
+}
     fun getLatestSms(context: Context): SmsInfo? {
         val uri = Uri.parse("content://sms/inbox")
         val projection = arrayOf("address", "body", "date")

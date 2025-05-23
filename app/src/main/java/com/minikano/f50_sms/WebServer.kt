@@ -1162,7 +1162,69 @@ class WebServer(context: Context, port: Int, gatewayIp: String) : NanoHTTPD(port
                 json
             )
         }
+// 存储企业微信配置
+if (method == "POST" && uri == "/sms_forward_wework") {
+    return try {
+        val map = HashMap<String, String>()
+        session?.parseBody(map)
+        val body = map["postData"] ?: throw Exception("postData为空")
+        val json = JSONObject(body)
 
+        // 提取参数
+        val corpId = json.optString("corp_id", "").trim()
+        val agentId = json.optString("agent_id", "").trim()
+        val secret = json.optString("secret", "").trim()
+        val toUser = json.optString("to_user", "@all").trim()
+
+        // 参数校验
+        if (corpId.isEmpty() || agentId.isEmpty() || secret.isEmpty()) {
+            throw Exception("请填写企业ID、应用ID和密钥")
+        }
+
+        // 存储配置
+        val sharedPrefs = context_app.getSharedPreferences("kano_ZTE_store", Context.MODE_PRIVATE)
+        sharedPrefs.edit().apply {
+            putString("kano_sms_forward_method", "WEWORK") // 必须大写
+            putString("kano_wework_corpid", corpId)
+            putString("kano_wework_agentid", agentId)
+            putString("kano_wework_secret", secret)
+            putString("kano_wework_touser", toUser)
+            apply()
+        }
+
+        Log.d("kano_ZTE_LOG", "保存企业微信配置：$corpId/$agentId")
+
+        // 发送测试消息
+        val testMsg = SmsInfo("1010721", "UFI-TOOLS 企业微信测试消息", 0)
+        SmsPoll.forwardByWeWork(testMsg, context_app)
+
+        newFixedLengthResponse(Response.Status.OK, "application/json", """{"result":"success"}""").apply {
+            addHeader("Access-Control-Allow-Origin", "*")
+        }
+    } catch (e: Exception) {
+        Log.e("kano_ZTE_LOG", "企业微信配置错误：${e.message}")
+        newFixedLengthResponse(
+            Response.Status.INTERNAL_ERROR, "application/json",
+            """{"error":"${e.message ?: "未知错误"}"}"""
+        ).apply { addHeader("Access-Control-Allow-Origin", "*") }
+    }
+}
+
+// 读取企业微信配置
+if (method == "GET" && uri == "/sms_forward_wework") {
+    val sharedPrefs = context_app.getSharedPreferences("kano_ZTE_store", Context.MODE_PRIVATE)
+    val jsonStr = """
+        {
+            "corp_id": "${sharedPrefs.getString("kano_wework_corpid", "")}",
+            "agent_id": "${sharedPrefs.getString("kano_wework_agentid", "")}",
+            "secret": "${sharedPrefs.getString("kano_wework_secret", "")}",
+            "to_user": "${sharedPrefs.getString("kano_wework_touser", "@all")}"
+        }
+    """.trimIndent()
+    return newFixedLengthResponse(Response.Status.OK, "application/json", jsonStr)
+}
+
+// endregion
         //短信转发总开关
         if (method == "POST" && uri == "/sms_forward_enabled"){
             return try {

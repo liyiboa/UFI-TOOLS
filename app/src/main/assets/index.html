@@ -920,6 +920,8 @@
                             class="tab-btn">SMTP方式</button>
                         <button id="curl_btn" data-method="curl" id="curlForwardBtn" style="flex: 1;"
                             class="tab-btn">CURL方式</button>
+                        <button id="wework_btn" data-method="wework" style="flex: 1;"
+                            class="tab-btn">企业微信</button>
                     </div>
                     <div id="collapse_smsforward" class="collapse">
                         <div class="collapse_box">
@@ -994,6 +996,41 @@
                                                 id="curl_text" name="curl_text" type="text"
                                                 placeholder="curl 'https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=xxx'"></textarea>
                                         </div>
+                                    </div>
+                                </div>
+                                <div class="btn" style="text-align: right;">
+                                    <button type="submit">提交</button>
+                                    <button type="button" onclick="closeModal('#smsForwardModal')">关闭</button>
+                                </div>
+                            </form>
+                            <form onsubmit="handleSmsForwardWeworkForm(event)" id="smsForwardWeworkForm" style="display: none;">
+                                <div class="content" style="overflow-y: scroll; padding: 15px; width: 66vw; max-width: 400px;">
+                                    <div class="title" style="font-size: 12px;">
+                                        请从企业微信后台获取以下参数
+                                    </div>
+                                    <div class="item" style="margin: 10px auto;">
+                                        <label style="display: flex; align-items: center;">
+                                            企业ID：<input style="flex: 1;padding: 4px 6px;width: 100%;" 
+                                            id="wework_corp_id" name="corp_id" type="text" placeholder="企业ID（corpid）">
+                                        </label>
+                                    </div>
+                                    <div class="item" style="margin: 10px auto;">
+                                        <label style="display: flex; align-items: center;">
+                                            应用ID：<input style="flex: 1;padding: 4px 6px;width: 100%;" 
+                                            id="wework_agent_id" name="agent_id" type="number" placeholder="应用AgentID">
+                                        </label>
+                                    </div>
+                                    <div class="item" style="margin: 10px auto;">
+                                        <label style="display: flex; align-items: center;">
+                                            应用密钥：<input style="flex: 1;padding: 4px 6px;width: 100%;" 
+                                            id="wework_secret" name="secret" type="password" placeholder="应用Secret">
+                                        </label>
+                                    </div>
+                                    <div class="item" style="margin: 10px auto;">
+                                        <label style="display: flex; align-items: center;">
+                                            接收成员：<input style="flex: 1;padding: 4px 6px;width: 100%;" 
+                                            id="wework_to_user" name="to_user" type="text" placeholder="成员UserID（多个用 | 分隔）">
+                                        </label>
                                     </div>
                                 </div>
                                 <div class="btn" style="text-align: right;">
